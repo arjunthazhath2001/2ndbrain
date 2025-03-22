@@ -1,0 +1,12 @@
+# Dependency directories
+node_modules/
+dist/
+
+# Environment files
+.env
+
+# TypeScript
+*.tsbuildinfo
+
+# Lock files
+package-lock.json
