@@ -20,8 +20,32 @@ const UserSchema = new Schema(
         password: String
     }
 )
-
 const UserModel = model("users",UserSchema,)
 
+const contentTypes=['image','video','article','audio']
+const ContentSchema = new Schema({
+    link: {type:String,required:true},
+    type: {type:String,enum:contentTypes,required:true},
+    title: {type:String, required:true},
+    tags: [{type: mongoose.Types.ObjectId, ref:'tags'}],  
+    userId:{type: mongoose.Types.ObjectId, ref:'users', required:true, validate: async function(value: mongoose.Types.ObjectId){
+        const user= await UserModel.findById(value);
+        if(!user){
+            throw new Error('User does not exist')
+        }
+    }}
+})
 
-export{UserModel,connectToDatabase}
+const ContentModel = model("content",ContentSchema)
+
+
+
+const TagSchema = new Schema({
+    title: {type:String, required:true, unique:true}
+})
+
+const TagModel = model("tags",TagSchema)
+
+
+
+export{UserModel,connectToDatabase, ContentModel, TagModel}

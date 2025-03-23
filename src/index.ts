@@ -1,9 +1,10 @@
+require('dotenv').config()
 import express from 'express'
-import mongoose from 'mongoose'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcrypt'
-import {connectToDatabase,UserModel} from './db'
+import {connectToDatabase,ContentModel,TagModel,UserModel} from './db'
 import {z} from 'zod'
+import { Middleware } from './middleware'
 const app= express()
 app.use(express.json())
 
@@ -45,19 +46,140 @@ app.post('/api/v1/signup', async function(req,res){
 
 
 app.post('/api/v1/signin', async function(req,res){
+    const username = req.body.username;
+    const password= req.body.password;
 
+    try{
+    const user= await UserModel.findOne({
+        username:username
+    })
+
+    if(user){
+        const verified= await bcrypt.compare(password,user.password as string)
+        if(verified){
+            const token = jwt.sign({id: user._id}, process.env.JWT_SECRET as string)
+            res.status(200).json({"success":token})
+        } else{
+            res.status(401).json({message:"Wrong password"})
+        }
+    }else{
+        res.status(404).json("No such user exists")
+    }
+    }catch(e){
+        res.status(500).json("Please try again later")
+        return
+    }
 })
-app.post('/api/v1/content', async function(req,res){
 
+
+app.post('/api/v1/content', Middleware, async function(req,res){
+    const requiredBody= z.object({
+        link: z.string().url({message:"This is not a url"}),
+        type: z.enum(['image','video','article','audio'], {message:"You can only choose from image, video, article and audio"}),
+        title: z.string().min(3,{message:"Too small of a title"}).max(100,{message:"Title should be less than 100 characters"}),
+        tags: z.array(z.string(),{message:"Array of strings expected"})        
+    })
+
+    try{
+    
+    const parsedBody= requiredBody.safeParse(req.body)
+
+    if(!parsedBody.success){
+        res.json(parsedBody.error.issues[0].message)
+        return
+    }
+    const link = req.body.link
+    const type = req.body.type
+    const title = req.body.title
+    const tags = req.body.tags
+    //@ts-ignore
+    const userId = req.id;
+    const tagIds= []
+
+    //will check whether the tags are currently in our TagModel if its exists then it ll send that tag id will be pushed into the list of TAGIDS. Else it will create a tagmodel.create and then push it to TAGIDS before pushing it to the content model.
+        for(let tag of tags){
+            const lowertag= tag.toLowerCase()
+            const dbtag= await TagModel.findOne({title:lowertag})
+
+            if(dbtag){
+                tagIds.push(dbtag._id)
+            }
+            else{
+                const newtag = await TagModel.create({
+                    title: lowertag
+                })
+                if(newtag){
+                    tagIds.push(newtag._id)
+                }        
+            }
+
+    }
+    
+        const content= await ContentModel.create({
+        link :link,
+        type:type,
+        title:title,
+        tags : tagIds,
+        userId:userId
+    })
+
+
+    if(content){
+        res.json({"message":"Content created successfully"})
+    }
+    }catch(error){
+        res.status(404).json({"Could not add Content":error})
+        return
+    }
+}
+)
+
+
+
+app.get('/api/v1/content', Middleware, async function(req,res){
+    //@ts-ignore
+    const userId= req.id
+    try{
+        const contents= await ContentModel.find({
+        userId: userId
+    }).populate("userId", "username").populate("tags","title")
+
+    if(contents){
+        res.json(contents)
+    }
+    else{res.json("no contents to show")}
+    }
+    catch(error){
+        res.json("some error try again later")
+}
 })
-app.get('/api/v1/content ', function(req,res){
 
-})
-app.delete('/api/v1/content', function(req,res){
 
+
+app.delete('/api/v1/content', Middleware, async function(req,res){
+    const objId= req.body.objId
+      //@ts-ignore
+    const userId = req.id
+    try{
+
+        const content = await ContentModel.deleteOne({
+            _id: objId,
+            userId: userId
+        })
+        if(content){
+            res.json("content deleted successfully")
+        }
+        else{
+            res.json("Couldnt delete content related with this content")
+        }
+    }
+    catch(error){
+        res.json("Some error has occured. Try again later")
+    }
 })
 
 app.post('/api/v1/share', function(req,res){
+
 
 })
 
