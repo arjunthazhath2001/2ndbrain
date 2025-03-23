@@ -47,5 +47,13 @@ const TagSchema = new Schema({
 const TagModel = model("tags",TagSchema)
 
 
+const LinkSchema = new Schema({
+    hash: {type:String, unique:true},
+    userId: {type: mongoose.Types.ObjectId, ref:'users', required:true, unique:true},
+    share:{type:Boolean}
+})
 
-export{UserModel,connectToDatabase, ContentModel, TagModel}
+const LinkModel = model("links", LinkSchema) 
+
+
+export{UserModel,connectToDatabase, ContentModel, TagModel, LinkModel}

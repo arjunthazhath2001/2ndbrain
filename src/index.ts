@@ -2,9 +2,11 @@ require('dotenv').config()
 import express from 'express'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcrypt'
-import {connectToDatabase,ContentModel,TagModel,UserModel} from './db'
+import {connectToDatabase,ContentModel,LinkModel,TagModel,UserModel} from './db'
 import {z} from 'zod'
 import { Middleware } from './middleware'
+import { hash } from 'crypto'
+import Link from 'next/link'
 const app= express()
 app.use(express.json())
 
@@ -178,13 +180,103 @@ app.delete('/api/v1/content', Middleware, async function(req,res){
     }
 })
 
-app.post('/api/v1/share', function(req,res){
 
+app.post('/api/v1/share', Middleware,async function(req,res){
+    
+    //@ts-ignore
+    const userId=req.id
+    
+    const dblink= await LinkModel.findOne({
+        userId: userId
+    })
+
+    if(dblink){        
+        const shareableLink= `${req.protocol}://${req.hostname}/api/v1/brain/${dblink.hash}`
+        res.json({'link': shareableLink})
+        return
+    }
+    
+    
+    try{    
+        const hashedId= await bcrypt.hash(userId,5)
+        const shortHash= hashedId.replace(/[^a-zA-Z0-9]/g,'').substring(0,10)
+        const link= await LinkModel.create({
+            hash: shortHash,
+            userId: userId,
+            share: true
+        })
+
+        if(link){
+            const shareableLink= `${req.protocol}://${req.hostname}/api/v1/brain/${link.hash}`
+            res.status(200).json({'link':shareableLink})
+        }else{
+            res.json({"message":"Failed to create shareableLink"})
+        }
+        
+        } catch(error){
+
+            res.json('Some error has occured')
+
+        }
+})
+
+
+app.patch('/api/v1/share', Middleware,async function(req,res){
+    
+    //@ts-ignore
+    const userId=req.id
+    try{
+    const dblink= await LinkModel.findOne({
+        userId: userId
+    })
+    if(dblink){
+        const share = !(dblink.share)
+        const link= await LinkModel.updateOne(
+        {userId:userId},
+        {share: share}
+    )
+    if(link){
+        res.status(200).json({message:"Link status modified successfully", status:share})
+        }
+    } else{
+        res.json("No link found")
+    }
+    }
+    catch(error){
+        res.status(400).json('Some error try again later')
+    }
 
 })
 
-app.get('/api/v1/brain/:sharelink', function(req,res){
 
+app.get('/api/v1/brain/:sharelink', async function(req,res){
+    const hash= req.params.sharelink
+    try{
+        const user= await LinkModel.findOne({
+        hash:hash
+    })
+    if(user && user.share){
+        const userId= user.userId
+        try{
+            const contents= await ContentModel.find({
+            userId: userId
+        }).populate("userId", "username").populate("tags","title")
+
+        if(contents){
+            res.json(contents)
+        }
+        else{res.json("no contents to show")}
+        }
+        catch(error){
+            res.json("some error try again later")
+            return
+    }
+    }
+    else{
+        res.status(400).json("Sorry the link does not exist")
+    }}catch(error){
+        res.json("Some error try again later")
+    }
 })
 
 
