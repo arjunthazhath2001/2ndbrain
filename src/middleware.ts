@@ -2,7 +2,7 @@ import { Request,Response, NextFunction} from 'express'
 import jwt from 'jsonwebtoken'
 
 function Middleware(req:Request,res:Response,next:NextFunction){
-    const token= req.headers.token
+    const token= req.headers.authorization
     
     try{
     const verifiedToken = jwt.verify(token as string,process.env.JWT_SECRET as string)

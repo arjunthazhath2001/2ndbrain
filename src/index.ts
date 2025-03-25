@@ -2,14 +2,13 @@ require('dotenv').config()
 import express from 'express'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcrypt'
+import cors from 'cors'
 import {connectToDatabase,ContentModel,LinkModel,TagModel,UserModel} from './db'
 import {z} from 'zod'
 import { Middleware } from './middleware'
-import { hash } from 'crypto'
-import Link from 'next/link'
 const app= express()
 app.use(express.json())
-
+app.use(cors())
 connectToDatabase()
 
 app.post('/api/v1/signup', async function(req,res){
@@ -23,11 +22,12 @@ app.post('/api/v1/signup', async function(req,res){
         res.status(404).json(parsedBody.error.issues[0].message)
         return
     }
+    console.log("parsed")
 
     const username = req.body.username;
     const password = req.body.password;
     const hashedPassword= await bcrypt.hash(password,5)
-        
+    console.log("hashed")    
         const user= await UserModel.create({
         username: username,
         password: hashedPassword
@@ -60,7 +60,7 @@ app.post('/api/v1/signin', async function(req,res){
         const verified= await bcrypt.compare(password,user.password as string)
         if(verified){
             const token = jwt.sign({id: user._id}, process.env.JWT_SECRET as string)
-            res.status(200).json({"success":token})
+            res.status(200).json({"token":token})
         } else{
             res.status(401).json({message:"Wrong password"})
         }
@@ -77,15 +77,13 @@ app.post('/api/v1/signin', async function(req,res){
 app.post('/api/v1/content', Middleware, async function(req,res){
     const requiredBody= z.object({
         link: z.string().url({message:"This is not a url"}),
-        type: z.enum(['image','video','article','audio'], {message:"You can only choose from image, video, article and audio"}),
+         type: z.enum(['video','tweet'], {message:"You can only choose from videoor tweet"}),
         title: z.string().min(3,{message:"Too small of a title"}).max(100,{message:"Title should be less than 100 characters"}),
         tags: z.array(z.string(),{message:"Array of strings expected"})        
     })
 
     try{
-    
     const parsedBody= requiredBody.safeParse(req.body)
-
     if(!parsedBody.success){
         res.json(parsedBody.error.issues[0].message)
         return
@@ -147,7 +145,7 @@ app.get('/api/v1/content', Middleware, async function(req,res){
     }).populate("userId", "username").populate("tags","title")
 
     if(contents){
-        res.json(contents)
+        res.json({"contents":contents})
     }
     else{res.json("no contents to show")}
     }

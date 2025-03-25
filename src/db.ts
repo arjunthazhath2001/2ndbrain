@@ -22,7 +22,7 @@ const UserSchema = new Schema(
 )
 const UserModel = model("users",UserSchema,)
 
-const contentTypes=['image','video','article','audio']
+const contentTypes=['video','tweet']
 const ContentSchema = new Schema({
     link: {type:String,required:true},
     type: {type:String,enum:contentTypes,required:true},
